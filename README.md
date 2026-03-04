@@ -1,9 +1,7 @@
 #  Lab 2 — Hands-On Kafka (CLI)
 
 In this lab, you will interact directly with **Apache Kafka** using its **command-line tools**.
-The goal is to understand Kafka’s **core concepts** by experimenting and exploring the CLI.
-
-You are expected to search the documentation and discover the appropriate commands by yourself.
+The goal is to understand Kafka's **core concepts** by experimenting and exploring the CLI.
 
 ---
 
@@ -21,7 +19,7 @@ By the end of this lab, you should understand and be able to explain:
 
 ---
 
-##  Kafka Installation
+## Kafka Installation
 
 Kafka must be run using **Docker**.
 
@@ -29,73 +27,162 @@ Kafka must be run using **Docker**.
 - Docker Desktop installed and running
 - Basic familiarity with the terminal
 
-You should be able to:
-- Start Kafka using Docker
-- Verify that Kafka and its dependencies are running
+---
+
+## Lab Tasks & Commands
 
 ---
 
-## Lab Tasks
-
 ### Task 1 — Start Kafka
-- Start Kafka using Docker
-- Verify that the Kafka broker is running
+
+**Start the Kafka broker and ZooKeeper using Docker Compose:**
+
+```bash
+docker-compose up -d
+```
+
+**Verify that both containers are running:**
+
+```bash
+docker ps
+```
+
+You should see two containers running:
+- `zookeeper`
+- `kafka`
+
+**Check Kafka logs to confirm it started correctly:**
+
+```bash
+docker logs kafka
+```
+
+**Open a shell inside the Kafka container (needed for all CLI tasks below):**
+
+```bash
+docker exec -it kafka bash
+```
+
+> All commands from Task 2 onwards are run **inside** this shell.
 
 ---
 
 ### Task 2 — Topics
-- Create a topic named `transactions`
-- Inspect the topic configuration
-- Identify how many partitions the topic has
+
+**Create a topic named `transactions` with 3 partitions:**
+
+```bash
+kafka-topics --bootstrap-server localhost:9092 \
+  --create \
+  --topic transactions \
+  --partitions 3 \
+  --replication-factor 1
+```
+
+**List all existing topics:**
+
+```bash
+kafka-topics --bootstrap-server localhost:9092 --list
+```
+
+**Inspect the topic configuration (partitions, replication, offsets):**
+
+```bash
+kafka-topics --bootstrap-server localhost:9092 \
+  --describe \
+  --topic transactions
+```
+
+**Expected output:**
+
+```
+Topic: transactions   PartitionCount: 3   ReplicationFactor: 1
+  Partition: 0   Leader: 1   Replicas: 1   Isr: 1
+  Partition: 1   Leader: 1   Replicas: 1   Isr: 1
+  Partition: 2   Leader: 1   Replicas: 1   Isr: 1
+```
+
+**What we observe:**
+The topic `transactions` has **3 partitions**, each assigned to broker 1.
+Each partition has its own offset counter starting at 0.
 
 ---
 
 ### Task 3 — Producers
-- Start a Kafka producer
-- Send multiple messages to the `transactions` topic
-- Observe how messages are written to Kafka
+
+**Start a Kafka producer for the `transactions` topic:**
+
+```bash
+kafka-console-producer --bootstrap-server localhost:9092 \
+  --topic transactions
+```
+
+**Once the `>` prompt appears, type messages one per line:**
+
+```
+1,101,49.99,2024-01-01 10:00:05
+2,102,120.00,2024-01-01 10:00:20
+3,103,8.50,2024-01-01 10:01:10
+4,101,299.99,2024-01-01 10:02:00
+5,104,15.75,2024-01-01 10:02:45
+6,102,55.20,2024-01-01 10:03:30
+7,105,200.00,2024-01-01 10:04:10
+8,103,32.10,2024-01-01 10:05:00
+9,106,500.00,2024-01-01 10:05:40
+10,101,22.00,2024-01-01 10:06:15
+```
+
+Press `Ctrl+C` to stop the producer.
+
+**What we observe:**
+Each line typed becomes one **Kafka message**. The producer sends it to the broker,
+which writes it to one of the 3 partitions. Messages are distributed across
+partitions using a round-robin strategy (no key specified).
 
 ---
 
 ### Task 4 — Consumers
-- Start a Kafka consumer
-- Read messages from the `transactions` topic
-- Restart the consumer and observe what happens
+
+**Start a consumer that reads from the beginning of the topic:**
+
+```bash
+kafka-console-consumer --bootstrap-server localhost:9092 \
+  --topic transactions \
+  --from-beginning
+```
+
+You should see all 10 messages printed in the terminal.
+
+**Stop the consumer:**
+
+```bash
+Ctrl+C
+```
+
+**Restart the consumer without `--from-beginning`:**
+
+```bash
+kafka-console-consumer --bootstrap-server localhost:9092 \
+  --topic transactions
+```
+
+**What we observe:**
+- With `--from-beginning`: the consumer reads **all messages** stored in the topic,
+  starting from offset 0 of each partition.
+- Without `--from-beginning`: the consumer starts at the **latest offset** and only
+  receives **new messages** produced after it started.
+- Message order may differ from production order because messages are spread
+  across 3 partitions — order is guaranteed **within** a partition, not across them.
 
 ---
 
 ### Task 5 — Offsets
-- Identify how Kafka tracks which messages have been consumed
-- Observe the effect of restarting consumers with and without replaying old messages
 
----
+**Check the current offsets for all partitions of the topic:**
 
-### Task 6 — Consumer Groups
-- Start multiple consumers using the same consumer group
-- Produce new messages
-- Observe how the messages are distributed
+```bash
+kafka-run-class kafka.tools.GetOffsetShell \
+  --bootstrap-server localhost:9092 \
+  --topic transactions
+```
 
----
-
-## Reflection Questions (Answer in Your Own Words)
-
-- Why are topics considered logical streams?
-- Why does Kafka use partitions?
-- What is the role of offsets?
-- Why does each partition only allow one consumer per group?
-- What happens if there are more consumers than partitions?
-
----
-
-##  Notes
-- Do **not** write application code for this lab
-- Use only Kafka command-line tools
-- Take notes of commands you discover and what they do
-
----
-
-## Deliverable
-Submit a short document explaining:
-- What commands you used
-- What you observed
-- Answers to the reflection questions
